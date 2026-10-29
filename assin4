@@ -1,0 +1,47 @@
+import pandas as pd
+from mlxtend.frequent_patterns import apriori, association_rules
+from google.colab import files
+
+# 1. Load dataset
+df = pd.read_csv('/content/Grocery_Dataset.csv')
+
+# 2. Create transaction matrix
+basket = pd.crosstab(df['TransactionID'], df['Item']) > 0
+
+print("Transaction Matrix:")
+print(basket.head())
+
+# 3. Find frequent itemsets
+freq = apriori(basket, min_support=0.4, use_colnames=True)
+
+print("\nFrequent Itemsets:")
+print(freq)
+
+# 4. Generate association rules
+rules = association_rules(
+    freq,
+    metric='confidence',
+    min_threshold=0.6
+)
+
+print("\nAssociation Rules:")
+print(rules[['antecedents', 'consequents',
+             'support', 'confidence', 'lift']])
+
+# 5. Convert support and confidence to percentages
+result = rules[['antecedents', 'consequents',
+                'support', 'confidence', 'lift']].copy()
+
+result['support'] = (result['support'] * 100).round(2)
+result['confidence'] = (result['confidence'] * 100).round(2)
+result['lift'] = result['lift'].round(2)
+
+print("\nFinal Association Rules:")
+print(result)
+
+# 6. Save results
+freq.to_csv('frequent_itemsets.csv', index=False)
+result.to_csv('association_rules.csv', index=False)
+
+files.download('frequent_itemsets.csv')
+files.download('association_rules.csv')
