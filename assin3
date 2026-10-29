@@ -1,0 +1,98 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.model_selection import train_test_split
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score,
+    f1_score, confusion_matrix, classification_report
+)
+
+# Load dataset
+df = pd.read_csv("loan_approval_dataset.csv")
+df.drop_duplicates(inplace=True)
+
+# Handle missing values
+for col in df.select_dtypes(include="number"):
+    df[col] = df[col].fillna(df[col].median())
+
+for col in df.select_dtypes(include="object"):
+    if not df[col].mode().empty:
+        df[col] = df[col].fillna(df[col].mode()[0])
+
+# Convert target
+df["Loan_Approved"] = df["Loan_Approved"].map({
+    "Approved": 1, "Rejected": 0
+})
+
+# Remove unnecessary columns
+df.drop(columns=[
+    "Application_ID", "Approved_Amount",
+    "Risk_Score", "Default_Risk"
+], errors="ignore", inplace=True)
+
+X = df.drop("Loan_Approved", axis=1)
+y = df["Loan_Approved"]
+
+num = X.select_dtypes(include="number").columns
+cat = X.select_dtypes(include="object").columns
+
+# Split dataset
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+# Preprocessing
+preprocessor = ColumnTransformer([
+    ("num", StandardScaler(), num),
+    ("cat", OneHotEncoder(handle_unknown="ignore"), cat)
+])
+
+# Models
+models = {
+    "SVM": SVC(kernel="rbf"),
+    "KNN": KNeighborsClassifier(n_neighbors=5)
+}
+
+results = {}
+
+# Train and evaluate
+for name, model in models.items():
+    pipeline = Pipeline([
+        ("preprocessing", preprocessor),
+        ("classifier", model)
+    ])
+
+    pipeline.fit(X_train, y_train)
+    pred = pipeline.predict(X_test)
+
+    results[name] = accuracy_score(y_test, pred)
+
+    print(f"\n===== {name} =====")
+    print("Accuracy:", results[name])
+    print("Precision:", precision_score(y_test, pred, zero_division=0))
+    print("Recall:", recall_score(y_test, pred, zero_division=0))
+    print("F1 Score:", f1_score(y_test, pred, zero_division=0))
+    print(classification_report(y_test, pred, zero_division=0))
+
+    # Confusion matrix
+    sns.heatmap(confusion_matrix(y_test, pred),
+                annot=True, fmt="d", cmap="Blues")
+    plt.title(f"{name} Confusion Matrix")
+    plt.xlabel("Predicted")
+    plt.ylabel("Actual")
+    plt.show()
+
+# Compare models
+print("\n===== MODEL COMPARISON =====")
+for name, acc in results.items():
+    print(f"{name} Accuracy: {acc:.4f}")
+
+best = max(results, key=results.get)
+print(f"\nBest Model: {best}")
+print(f"Best Accuracy: {results[best]:.4f}")
