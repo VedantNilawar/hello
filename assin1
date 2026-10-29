@@ -1,0 +1,150 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.preprocessing import MinMaxScaler, LabelEncoder
+
+# 1. Load Dataset
+df = pd.read_csv("/content/house_prices_extended.csv")
+
+print("--- Initial Info ---")
+df.info()
+
+print("\n--- Missing Values Before ---")
+print(df.isnull().sum())
+print("Shape:", df.shape)
+
+# Copy original data for before-normalization plots
+df_before = df.copy()
+
+
+# 2. Handling Missing Values
+df['Bathrooms'] = df['Bathrooms'].fillna(df['Bathrooms'].median())
+df['SqFt'] = df['SqFt'].fillna(df['SqFt'].median())
+df['Lot_Size_Acres'] = df['Lot_Size_Acres'].fillna(df['Lot_Size_Acres'].median())
+df['Condition'] = df['Condition'].fillna(df['Condition'].mode()[0])
+df['Has_Pool'] = df['Has_Pool'].fillna(df['Has_Pool'].mode()[0])
+
+'''
+# 3. Datetime Extraction & Column Dropping
+df['Date_Listed'] = pd.to_datetime(df['Date_Listed'])
+df['Month_Listed'] = df['Date_Listed'].dt.month
+df = df.drop(columns=['Id', 'Date_Listed'])'''
+
+
+# 4. Data Type Conversion
+df['Has_Pool'] = df['Has_Pool'].astype(bool)
+
+print("\n--- After Cleaning ---")
+print(df.dtypes)
+
+print("\nRemaining Missing Values:")
+print(df.isnull().sum())
+
+
+# 5. Encoding Categorical Features
+
+# Label Encoding
+le = LabelEncoder()
+df['Property_Type'] = le.fit_transform(df['Property_Type'])
+
+# Ordinal Encoding
+condition_mapping = {
+    'Poor': 0,
+    'Fair': 1,
+    'Good': 2,
+    'Excellent': 3
+}
+df['Condition'] = df['Condition'].map(condition_mapping)
+
+# One-Hot Encoding
+df = pd.get_dummies(
+    df,
+    columns=['Neighborhood'],
+    drop_first=True,
+    dtype=int
+)
+
+print("\n--- Encoded Data Sample ---")
+print(df[['Property_Type', 'Condition',
+          'Neighborhood_Rural', 'Neighborhood_Suburbs']].head())
+
+
+# 6. Normalizing Numerical Features
+scaler = MinMaxScaler()
+
+scale_columns = ['SqFt', 'Lot_Size_Acres', 'Price']
+df[scale_columns] = scaler.fit_transform(df[scale_columns])
+
+print("\n--- Final Normalized Data Sample ---")
+print(df[scale_columns].head())
+
+
+# 7. Box Plots
+plt.figure(figsize=(15, 8))
+
+for i, col in enumerate(scale_columns):
+
+    # Before Normalization
+    plt.subplot(3, 2, 2*i + 1)
+    sns.boxplot(x=df_before[col])
+    plt.title(f'Original Box Plot - {col}')
+
+    # After Normalization
+    plt.subplot(3, 2, 2*i + 2)
+    sns.boxplot(x=df[col])
+    plt.title(f'Normalized Box Plot - {col}')
+
+plt.tight_layout()
+plt.show()
+
+
+# 8. Scatter Plots
+plt.figure(figsize=(15, 5))
+
+# Original Data
+plt.subplot(1, 2, 1)
+sns.scatterplot(
+    x=df_before['SqFt'],
+    y=df_before['Price']
+)
+plt.title("Original: SqFt vs Price")
+plt.xlabel("SqFt")
+plt.ylabel("Price")
+
+# Normalized Data
+plt.subplot(1, 2, 2)
+sns.scatterplot(
+    x=df['SqFt'],
+    y=df['Price']
+)
+plt.title("Normalized: SqFt vs Price")
+plt.xlabel("SqFt (Scaled)")
+plt.ylabel("Price (Scaled)")
+
+plt.tight_layout()
+plt.show()
+
+
+# 9. Histograms
+fig, axes = plt.subplots(3, 2, figsize=(15, 12))
+
+for i, col in enumerate(scale_columns):
+
+    # Original Histogram
+    sns.histplot(
+        df_before[col].dropna(),
+        bins=30,
+        ax=axes[i, 0]
+    )
+    axes[i, 0].set_title(f'Original Histogram - {col}')
+
+    # Normalized Histogram
+    sns.histplot(
+        df[col],
+        bins=30,
+        ax=axes[i, 1]
+    )
+    axes[i, 1].set_title(f'Normalized Histogram - {col}')
+
+plt.tight_layout()
+plt.show()
